@@ -14,10 +14,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type AIProvider interface {
-	Chat(promt string, history []string) (string, error)
-}
-
 type SparkProvider struct {
 	AppID     string
 	APISecret string
@@ -56,10 +52,10 @@ func (s *SparkProvider) generateAuthUrl() string {
 
 	fullUrl := fmt.Sprintf("%s?%s", s.BaseURL, params.Encode())
 	return fullUrl
-	
+
 }
 
-func (s *SparkProvider) Chat(promt string, history []models.Message) (string, error) {
+func (s *SparkProvider) Chat(prompt string, history []models.Message) (string, error) {
 	authUrl := s.generateAuthUrl()
 	fmt.Printf("Connecting to: %s\n", authUrl)
 
@@ -69,20 +65,24 @@ func (s *SparkProvider) Chat(promt string, history []models.Message) (string, er
 	}
 	fmt.Println("WebSocket connected successfully")
 
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			fmt.Printf("Error closing WebSocket connection: %v", err)
+		}
+	}()
 
 	messages := []models.Message{}
 	messages = append(messages, history...)
-	messages = append(messages, models.Message{Role: "user", Content: promt})
+	messages = append(messages, models.Message{Role: "user", Content: prompt})
 
-	request := map[string]interface{} {
-		"header": map[string]string {
+	request := map[string]interface{}{
+		"header": map[string]string{
 			"app_id": s.AppID,
-			"uid": "user001",
+			"uid":    "user001",
 		},
-		"parameter": map[string] interface{}{
+		"parameter": map[string]interface{}{
 			"chat": map[string]interface{}{
-				"domain": "x1",
+				"domain":      "x1",
 				"temperature": 0.7,
 				"top_k":       4,
 				"max_tokens":  1024,

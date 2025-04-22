@@ -18,3 +18,11 @@ Go + MongoDB + Vue.js + 科大讯飞AI Cloud
    2. 会话上下文存储结构
    3. 自动清理机制
    4. 支持流式
+
+### 服务端
+
+1. Viper配置管理
+2. Zap日志管理
+3. Gin Prometheus监控
+4. Gorm数据库 MongoDB
+5. 科大讯飞AI接口
