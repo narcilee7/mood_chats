@@ -11,11 +11,18 @@ const (
 
 // 消息类型
 type Message struct {
+	Role      Role   `json:"role" bson:"role"`           // 消息角色
+	Content   string `json:"content" bson:"content"`     // 消息内容
+	Timestamp int64  `json:"timestamp" bson:"timestamp"` // 时间戳
+}
+
+type DBMessage struct {
+	ID        string   `json:"id" bson:"_id"`              // 消息ID
+	SessionID string   `json:"sessionId" bson:"sessionId"` // 会话ID
 	Role      Role     `json:"role" bson:"role"`           // 消息角色
 	Content   string   `json:"content" bson:"content"`     // 消息内容
 	Timestamp int64    `json:"timestamp" bson:"timestamp"` // 时间戳
-	Emotion   Emotion  `json:"emotion" bson:"emotion"`     // 情绪分析
-	Tags      []string `json:"tags" bson:"tags"`           // 语义标签
+	Session   *Session `json:"session" bson:"session"`     // 会话
 }
 
 // 情绪分析结果

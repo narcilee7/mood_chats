@@ -3,8 +3,10 @@ package services
 import (
 	"chatbot-server/models"
 	"context"
-	"log"
+	"fmt"
 	"time"
+
+	"go.uber.org/zap"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -18,12 +20,10 @@ type ChatService interface {
 	CreateSession(userID string) (*models.Session, error)
 	// 获取会话列表
 	GetSessionsByUserID(userID string) ([]*models.Session, error)
-	// 发送消息
-	SendMessage(sessionID string, content string) (*models.Message, error)
+	// 发送消息并收集情绪
+	ChatAndAnalyze(ctx context.Context, userID string, sessionID string, message string) (string, error)
 	// 获取会话历史
 	GetSessionHistory(sessionID string) ([]models.Message, error)
-	// 分析情绪
-	AnalyzeEmotion(content string) (*models.Emotion, error)
 	// 更新用户画像
 	UpdateUserProfile(userID string, emotion *models.Emotion) error
 }
@@ -62,61 +62,6 @@ func (cs *ChatServiceImpl) CreateSession(userID string) (*models.Session, error)
 	return session, nil
 }
 
-/*
-发送消息
-*/
-func (cs *ChatServiceImpl) SendMessage(sessionID string, content string) (*models.Message, error) {
-	// 1. 分析情绪
-	emotion, err := cs.AnalyzeEmotion(content)
-	if err != nil {
-		return nil, err
-	}
-
-	// 2. 生成AI回复
-	history := []models.Message{}
-	reply, err := cs.ai.Chat(content, history)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// 3. 保存消息
-	message := &models.Message{
-		Role:      "user",
-		Content:   content,
-		Timestamp: time.Now().Unix(),
-		Emotion:   *emotion,
-	}
-
-	aiMessage := &models.Message{
-		Role:      "assistant",
-		Content:   reply,
-		Timestamp: time.Now().Unix(),
-		Emotion:   *emotion,
-	}
-
-	// 4. 更新会话
-	update := bson.M{
-		"$push": bson.M{
-			"messages": bson.M{
-				"$each": []*models.Message{message, aiMessage},
-			},
-		},
-		"$set": bson.M{"updatedAt": time.Now().Unix()},
-	}
-
-	_, err = cs.db.Collection("sessions").UpdateOne(
-		context.Background(),
-		bson.M{"_id": sessionID},
-		update,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return message, nil
-}
-
 func (s *ChatServiceImpl) GetSessionHistory(sessionID string) ([]models.Message, error) {
 	var session models.Session
 	err := s.db.Collection("sessions").FindOne(
@@ -129,23 +74,6 @@ func (s *ChatServiceImpl) GetSessionHistory(sessionID string) ([]models.Message,
 	}
 
 	return session.Messages, nil
-}
-
-/*
-实现情感分析
-*/
-func (s *ChatServiceImpl) AnalyzeEmotion(content string) (*models.Emotion, error) {
-	// 调用大模型接口进行情感分析
-	userEmotion, err := s.ai.AnalyzeEmotion(content)
-
-	if err != nil {
-		log.Warn("SparkX 分析用户情绪失败", err)
-	}
-	return &models.Emotion{
-		Type:     "neutral",
-		Score:    0.5,
-		Keywords: []string{},
-	}, nil
 }
 
 func (s *ChatServiceImpl) UpdateUserProfile(userID string, emotion *models.Emotion) error {
@@ -184,4 +112,94 @@ func (c *ChatServiceImpl) GetSessionsByUserID(UserID string) ([]*models.Session,
 	}
 
 	return sessions, nil
+}
+
+func (cs *ChatServiceImpl) ChatAndAnalyze(ctx context.Context, userID string, sessionID string, message string) (string, error) {
+	// 获取历史消息
+	history, err := cs.GetSessionHistory(sessionID)
+	if err != nil {
+		zap.L().Error("获取会话历史失败", zap.Error(err))
+		return "", err
+	}
+
+	// 分析用户情绪
+	userEmotion, err := cs.ai.AnalyzeEmotion(userID, message)
+	if err != nil {
+		zap.L().Error("用户情绪分析失败", zap.Error(err))
+		// 即使情绪分析失败，也继续处理对话
+	}
+
+	// 调用大模型回复
+	answer, err := cs.ai.ChatWithHttp(message, userID, history)
+	if err != nil {
+		zap.L().Error("大模型回复失败", zap.Error(err))
+		return "", err
+	}
+
+	// 创建消息对象
+	userMessage := models.DBMessage{
+		ID:        primitive.NewObjectID().Hex(),
+		Role:      models.User,
+		Content:   message,
+		Timestamp: time.Now().Unix(),
+		SessionID: sessionID,
+	}
+
+	assistantMessage := models.DBMessage{
+		ID:        primitive.NewObjectID().Hex(),
+		Role:      models.Assistant,
+		Content:   answer,
+		Timestamp: time.Now().Unix(),
+		SessionID: sessionID,
+	}
+
+	// 存储消息
+	_, err = cs.db.Collection("messages").InsertOne(ctx, userMessage)
+	if err != nil {
+		zap.L().Error("存储用户消息失败", zap.Error(err))
+		return "", err
+	}
+
+	_, err = cs.db.Collection("messages").InsertOne(ctx, assistantMessage)
+	if err != nil {
+		zap.L().Error("存储助手消息失败", zap.Error(err))
+		return "", err
+	}
+
+	// 更新会话
+	update := bson.M{
+		"$push": bson.M{
+			"messages": bson.M{
+				"$each": []models.Message{
+					{Role: models.User, Content: message, Timestamp: userMessage.Timestamp},
+					{Role: models.Assistant, Content: answer, Timestamp: assistantMessage.Timestamp},
+				},
+			},
+		},
+		"$set": bson.M{
+			"updatedAt": time.Now().Unix(),
+		},
+	}
+
+	_, err = cs.db.Collection("sessions").UpdateOne(
+		ctx,
+		bson.M{"_id": sessionID},
+		update,
+	)
+	if err != nil {
+		zap.L().Error("更新会话失败", zap.Error(err))
+		return "", err
+	}
+
+	// 更新用户情绪标签（仅在情绪分析成功时）
+	if userEmotion != nil {
+		fmt.Println("userEmotion:", userEmotion)
+		err = cs.UpdateUserProfile(userID, userEmotion)
+		if err != nil {
+			zap.L().Error("更新用户情绪标签失败", zap.Error(err))
+			// 情绪标签更新失败不影响对话流程
+		}
+	}
+
+	return answer, nil
 }

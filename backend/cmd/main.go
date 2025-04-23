@@ -4,41 +4,50 @@ import (
 	"chatbot-server/configs"
 	"chatbot-server/database"
 	"chatbot-server/handlers"
+	"chatbot-server/logger"
 	"chatbot-server/routes"
 	"chatbot-server/services"
-	"go.uber.org/zap"
 	"log"
+
+	"go.uber.org/zap"
 )
 
 func main() {
-	// 加载配置
-	configs.LoadEnv()
 	// 初始化日志
-	zap.L().Info("Logger initialized")
+	if err := logger.InitLogger(); err != nil {
+		log.Fatalf("初始化日志失败: %v", err)
+	}
+
+	// 初始化配置
+	if err := configs.LoadEnv(); err != nil {
+		log.Fatalf("加载配置失败: %v", err)
+	}
+	zap.L().Info("配置加载成功")
 
 	// 连接数据库
 	database.ConnectDB()
-	zap.L().Info("Database initialized")
+	zap.L().Info("数据库连接成功")
 
 	// 初始化服务
 	sparkProvider := services.NewSparkProvider(
 		configs.GetEnv("SPARK_APP_ID"),
-		configs.GetEnv("SPARK_API_SECRET"),
-		configs.GetEnv("SPARK_API_KEY"),
+		configs.GetEnv("SPARK_WS_API_SECRET"),
+		configs.GetEnv("SPARK_WS_API_KEY"),
 		configs.GetEnv("SPARK_HOST"),
-		configs.GetEnv("SPARK_BASE_URL"),
-		configs.GetEnv("SPARK_MODEL"),
+		configs.GetEnv("SPARK_WS_BASE_URL"),
+		configs.GetEnv("SPARK_HTTP_BASE_URL"),
+		configs.GetEnv("SPARK_HTTP_API_Password"),
 	)
 
 	chatService := services.NewChatService(database.DB, sparkProvider)
-	chatController := controllers.NewChatController(chatService)
+	chatController := handlers.NewChatController(chatService)
 
 	// 设置路由
 	r := routes.SetupRouter(chatController)
 
 	// 启动服务器
-	log.Println("Server starting on :8081")
+	zap.L().Info("服务启动成功")
 	if err := r.Run(":8081"); err != nil {
-		log.Fatal("Server failed to start:", err)
+		log.Fatal("服务器启动失败:", err)
 	}
 }
