@@ -1,5 +1,6 @@
 <script setup lang='ts'>
-import TextAreaComponent from '@/components/TextAreaComponent.vue';
+import ChatEditor from '@/components/ChatEditor.vue';
+
 </script>
 
 <template>
@@ -7,7 +8,9 @@ import TextAreaComponent from '@/components/TextAreaComponent.vue';
     <div class="chat_container_header"></div>
     <div class="chat_container_logo">Mood-ChatBot</div>
     <div class="chat_container_textarea">
-      <text-area-component type="index" value="" />
+      <chat-editor 
+        type="index"
+      />
     </div>
     <div class="chat_container_tags"></div>
     <div class="chat_container_footer"></div>
@@ -45,7 +48,7 @@ import TextAreaComponent from '@/components/TextAreaComponent.vue';
 
   &_textarea {
     width: 80%;
-    height: 250px;
+    height: 230px;
   }
 }
 </style>
