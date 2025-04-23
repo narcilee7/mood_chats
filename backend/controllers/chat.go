@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"chatbot-server/services"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -19,9 +20,24 @@ func NewChatController(chatService services.ChatService) *ChatController {
 
 // CreateSession 创建新会话
 func (c *ChatController) CreateSession(ctx *gin.Context) {
-	userID := ctx.GetString("userID") // 从中间件获取用户ID
-	
-	session, err := c.chatService.CreateSession(userID)
+	var req struct {
+		UserID string `json:"userId"`
+	}
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userId := req.UserID
+
+	if userId == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "userId is required"})
+		return
+	}
+
+	session, err := c.chatService.CreateSession(userId)
+
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -51,15 +67,22 @@ func (c *ChatController) SendMessage(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, message)
 }
 
-// GetHistory 获取会话历史
-func (c *ChatController) GetHistory(ctx *gin.Context) {
-	sessionID := ctx.Param("sessionId")
-	
-	messages, err := c.chatService.GetSessionHistory(sessionID)
+// 根据userId获取sessions历史
+func (c *ChatController) GetSessionsByUserID(ctx *gin.Context) {
+	fmt.Println(ctx)
+	userId := ctx.Query("userId")
+
+	if userId == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "userId is required"})
+		return
+	}
+
+	sessions, err := c.chatService.GetSessionsByUserID(userId)
+
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, messages)
+	ctx.JSON(http.StatusOK, sessions)
 }

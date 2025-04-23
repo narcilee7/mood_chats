@@ -15,6 +15,8 @@ import (
 type ChatService interface {
 	// 创建新会话
 	CreateSession(userID string) (*models.Session, error)
+	// 获取会话列表
+	GetSessionsByUserID(userID string) ([]*models.Session, error)
 	// 发送消息
 	SendMessage(sessionID string, content string) (*models.Message, error)
 	// 获取会话历史
@@ -71,7 +73,7 @@ func (s *ChatServiceImpl) SendMessage(sessionID string, content string) (*models
 
 	// 2. 生成AI回复
 	history := []models.Message{}
-	_, err = s.ai.Chat(content, history)
+	reply, err := s.ai.Chat(content, history)
 
 	if err != nil {
 		return nil, err
@@ -85,10 +87,21 @@ func (s *ChatServiceImpl) SendMessage(sessionID string, content string) (*models
 		Emotion:   *emotion,
 	}
 
+	aiMessage := &models.Message{
+		Role:      "assistant",
+		Content:   reply,
+		Timestamp: time.Now().Unix(),
+		Emotion:   *emotion,
+	}
+
 	// 4. 更新会话
 	update := bson.M{
-		"$push": bson.M{"messages": message},
-		"$set":  bson.M{"updatedAt": time.Now().Unix()},
+		"$push": bson.M{
+			"messages": bson.M{
+				"$each": []*models.Message{message, aiMessage},
+			},
+		},
+		"$set": bson.M{"updatedAt": time.Now().Unix()},
 	}
 
 	_, err = s.db.Collection("sessions").UpdateOne(
@@ -149,4 +162,21 @@ func (s *ChatServiceImpl) UpdateUserProfile(userID string, emotion *models.Emoti
 	)
 
 	return err
+}
+
+func (c *ChatServiceImpl) GetSessionsByUserID(UserID string) ([]*models.Session, error) {
+	var sessions []*models.Session
+	cursor, err := c.db.Collection("sessions").Find(context.Background(), bson.M{"userId": UserID})
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = cursor.All(context.Background(), &sessions)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return sessions, nil
 }
