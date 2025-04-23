@@ -32,3 +32,6 @@ Go + MongoDB + Vue.js + 科大讯飞AI Cloud
 3. Gin Prometheus监控
 4. Gorm数据库 MongoDB
 5. 科大讯飞AI接口
+6. 测试
+
+
