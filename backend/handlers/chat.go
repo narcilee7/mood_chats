@@ -1,4 +1,4 @@
-package controllers
+package handlers
 
 import (
 	"chatbot-server/services"
@@ -46,26 +46,26 @@ func (c *ChatController) CreateSession(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, session)
 }
 
-// SendMessage 发送消息
-func (c *ChatController) SendMessage(ctx *gin.Context) {
-	var req struct {
-		SessionID string `json:"sessionId" binding:"required"`
-		Content   string `json:"content" binding:"required"`
-	}
+// // SendMessage 发送消息
+// func (c *ChatController) SendMessage(ctx *gin.Context) {
+// 	var req struct {
+// 		SessionID string `json:"sessionId" binding:"required"`
+// 		Content   string `json:"content" binding:"required"`
+// 	}
 
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+// 	if err := ctx.ShouldBindJSON(&req); err != nil {
+// 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 		return
+// 	}
 
-	message, err := c.chatService.SendMessage(req.SessionID, req.Content)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
+// 	message, err := c.chatService.SendMessage(req.SessionID, req.Content)
+// 	if err != nil {
+// 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+// 		return
+// 	}
 
-	ctx.JSON(http.StatusOK, message)
-}
+// 	ctx.JSON(http.StatusOK, message)
+// }
 
 // 根据userId获取sessions历史
 func (c *ChatController) GetSessionsByUserID(ctx *gin.Context) {
@@ -85,4 +85,27 @@ func (c *ChatController) GetSessionsByUserID(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, sessions)
+}
+
+func (c *ChatController) ChatAndAnalyze(ctx *gin.Context) {
+	var req struct {
+		SessionID string `json:"sessionId" binding:"required"`
+		Content   string `json:"content" binding:"required"`
+		UserID    string `json:"userId" binding:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	message, err := c.chatService.ChatAndAnalyze(ctx, req.UserID, req.SessionID, req.Content)
+
+	if err != nil {
+		fmt.Println("Err: from ChatAndAnalyze")
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, message)
 }

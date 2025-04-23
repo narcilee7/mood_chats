@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"chatbot-server/models"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -13,35 +14,53 @@ import (
 	"strings"
 	"time"
 
+	"bufio"
+	"io"
+
 	"github.com/gorilla/websocket"
 )
 
 type SparkProvider struct {
-	AppID     string
-	APISecret string
-	APIKey    string
-	Host      string
-	BaseURL   string
-	Model     string
+	AppID       string
+	APISecret   string
+	APIKey      string
+	Host        string
+	WSBaseURL   string
+	HTTPBaseURL string
+	HTTPAPIKEY  string
+	Model       string
 }
 
 type SparkProviderInterface interface {
 	Chat(prompt string, history []models.Message) (string, error)
 	AnalyzeEmotion(text string) (*models.Emotion, error)
+	ChatWithHttp(prompt string, userId string, history []models.Message) (string, error)
 }
 
-func NewSparkProvider(appID, apiSecret, apiKey, host, baseURL, model string) *SparkProvider {
+func NewSparkProvider(appID, apiSecret, apiKey, host, WSBaseURL, HTTPBaseURL, HTTPAPIKEY string) *SparkProvider {
+	// 验证 HTTPBaseURL
+	if !strings.HasPrefix(HTTPBaseURL, "http://") && !strings.HasPrefix(HTTPBaseURL, "https://") {
+		panic("HTTPBaseURL must start with http:// or https://")
+	}
+
+	// 验证 WSBaseURL
+	if !strings.HasPrefix(WSBaseURL, "ws://") && !strings.HasPrefix(WSBaseURL, "wss://") {
+		panic("WSBaseURL must start with ws:// or wss://")
+	}
+
 	return &SparkProvider{
-		AppID:     appID,
-		APISecret: apiSecret,
-		APIKey:    apiKey,
-		Host:      host,
-		BaseURL:   baseURL,
-		Model:     model,
+		AppID:       appID,
+		APISecret:   apiSecret,
+		APIKey:      apiKey,
+		Host:        host,
+		WSBaseURL:   WSBaseURL,
+		HTTPBaseURL: HTTPBaseURL,
+		HTTPAPIKEY:  HTTPAPIKEY,
+		Model:       "x1", // 设置默认模型
 	}
 }
 
-func (s *SparkProvider) generateAuthUrl() string {
+func (s *SparkProvider) generateWSUrl() string {
 	date := time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT")
 	signatureOrigin := fmt.Sprintf("host: %s\ndate: %s\nGET /v1/x1 HTTP/1.1", s.Host, date)
 	signatureSha := hmac.New(sha256.New, []byte(s.APISecret))
@@ -57,13 +76,130 @@ func (s *SparkProvider) generateAuthUrl() string {
 	params.Add("date", date)
 	params.Add("host", s.Host)
 
-	fullUrl := fmt.Sprintf("%s?%s", s.BaseURL, params.Encode())
+	fullUrl := fmt.Sprintf("%s?%s", s.WSBaseURL, params.Encode())
 	return fullUrl
 
 }
 
-func (s *SparkProvider) Chat(prompt string, history []models.Message) (string, error) {
-	authUrl := s.generateAuthUrl()
+// func (s *SparkProvider) GenerateHTTPUrl() string {
+// 	headers := map[string]string{
+// 		"Content-Type": "application/json",
+// 		"Authorization": s.APIKey,
+// 	}
+
+// }
+
+func (s *SparkProvider) ChatWithHttp(prompt string, userID string, history []models.Message) (string, error) {
+	// 构建消息历史
+	messages := make([]map[string]string, 0)
+	for _, msg := range history {
+		messages = append(messages, map[string]string{
+			"role":    string(msg.Role),
+			"content": msg.Content,
+		})
+	}
+	// 添加当前消息
+	messages = append(messages, map[string]string{
+		"role":    "user",
+		"content": prompt,
+	})
+
+	// 构建请求体
+	request := map[string]interface{}{
+		"model":    "x1",
+		"user":     userID,
+		"messages": messages,
+		"stream":   true,
+	}
+
+	// 序列化请求体
+	reqBody, err := json.Marshal(request)
+	if err != nil {
+		return "", fmt.Errorf("序列化请求体失败: %w", err)
+	}
+
+	// 创建 HTTP 请求
+	req, err := http.NewRequest("POST", s.HTTPBaseURL, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return "", fmt.Errorf("创建请求失败: %w", err)
+	}
+
+	// 设置请求头
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+s.HTTPAPIKEY)
+
+	// 发送请求
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("发送请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("请求失败: %s", resp.Status)
+	}
+
+	// 读取流式响应
+	var fullResponse string
+	reader := bufio.NewReader(resp.Body)
+	isFirstContent := true
+
+	for {
+		line, err := reader.ReadBytes('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return "", fmt.Errorf("读取响应失败: %w", err)
+		}
+
+		// 跳过空行和结束标记
+		if len(line) <= 6 || bytes.Contains(line, []byte("[DONE]")) {
+			continue
+		}
+
+		// 解析 JSON
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content          string `json:"content"`
+					ReasoningContent string `json:"reasoning_content"`
+				} `json:"delta"`
+			} `json:"choices"`
+		}
+
+		if err := json.Unmarshal(line[6:], &chunk); err != nil {
+			return "", fmt.Errorf("解析响应失败: %w", err)
+		}
+
+		// 处理思维链内容
+		if chunk.Choices[0].Delta.ReasoningContent != "" {
+			if isFirstContent {
+				fmt.Printf("\n思维链: %s\n", chunk.Choices[0].Delta.ReasoningContent)
+			}
+		}
+
+		// 处理回复内容
+		if chunk.Choices[0].Delta.Content != "" {
+			if isFirstContent {
+				fmt.Println("\n回复:")
+				isFirstContent = false
+			}
+			fullResponse += chunk.Choices[0].Delta.Content
+		}
+	}
+
+	if fullResponse == "" {
+		return "", fmt.Errorf("未收到有效回复")
+	}
+
+	return fullResponse, nil
+}
+
+func (s *SparkProvider) Chat(prompt string, userID string,  history []models.Message) (string, error) {
+	authUrl := s.generateWSUrl()
 	fmt.Printf("Connecting to: %s\n", authUrl)
 
 	conn, _, err := websocket.DefaultDialer.Dial(authUrl, nil)
@@ -85,7 +221,7 @@ func (s *SparkProvider) Chat(prompt string, history []models.Message) (string, e
 	request := map[string]interface{}{
 		"header": map[string]string{
 			"app_id": s.AppID,
-			"uid":    "user001",
+			"uid":    userID,
 		},
 		"parameter": map[string]interface{}{
 			"chat": map[string]interface{}{
@@ -153,80 +289,83 @@ func (s *SparkProvider) Chat(prompt string, history []models.Message) (string, e
 	return finalText.String(), nil
 }
 
-func (s *SparkProvider) AnalyzeEmotion(text string) (*models.Emotion, error) {
-	// 签名头
-	currentTime := fmt.Sprintf("%d", time.Now().Unix())
-	// X-Param
-	param := map[string]string{
-		"type": "dependent",
+func (s *SparkProvider) AnalyzeEmotion(userId string, text string) (*models.Emotion, error) {
+	// 构建请求体
+	request := map[string]interface{}{
+		"model": "x1",
+		"user":  userId,
+		"messages": []map[string]string{
+			{
+				"role":    "user",
+				"content": text,
+			},
+		},
+		"tools": []map[string]interface{}{
+			{
+				"type": "emotion_analysis",
+				"emotion_analysis": map[string]interface{}{
+					"enable": true,
+				},
+			},
+		},
 	}
-	paramJSON, _ := json.Marshal(param)
-	paramBase64 := base64.StdEncoding.EncodeToString(paramJSON)
-	// X-Check-Sum
-	checkSum := fmt.Sprintf("app_id=%s&time_stamp=%s&param_base64=%s&check_sum=%s", s.AppID, currentTime, paramBase64, s.APISecret)
-	//checkSumSHA256 := fmt.Sprintf("%x", sha256.Sum256([]byte(checkSum)))
 
-	// 构建请求
-	form := url.Values{}
-	form.Add("text", text)
-	req, err := http.NewRequest("POST", s.BaseURL, strings.NewReader(form.Encode()))
+	// 序列化请求体
+	reqBody, err := json.Marshal(request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("序列化请求体失败: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
-	req.Header.Set("X-Appid", s.AppID)
-	req.Header.Set("X-CurTime", currentTime)
-	req.Header.Set("X-Param", paramBase64)
-	req.Header.Set("X-CheckSum", checkSum)
 
-	resp, err := http.DefaultClient.Do(req)
-
+	// 创建 HTTP 请求
+	req, err := http.NewRequest("POST", s.HTTPBaseURL, bytes.NewBuffer(reqBody))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
+	// 设置请求头
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+s.HTTPAPIKEY)
+
+	// 发送请求
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("发送请求失败: %w", err)
+	}
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
-
-	var sparkNlpResp struct {
-		Code string `json:"code"`
-		Data struct {
-			Items []struct {
-				Settimeent int `json:"sentiment"`  // 0 消极 1 中性 2 积极
-				Confidence int `json:"confidence"` // 置信度
-			} `json:"items"`
-		}
-		Desc string `json:"desc"`
+	// 读取响应
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %w", err)
 	}
 
-	if err := json.Unmarshal(body, &sparkNlpResp); err != nil {
-		return nil, fmt.Errorf("解析情感分析响应失败: %w", err)
+	// 解析响应
+	var response struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+				Emotion struct {
+					Type     string   `json:"type"`
+					Score    float64  `json:"score"`
+					Keywords []string `json:"keywords"`
+				} `json:"emotion"`
+			} `json:"message"`
+		} `json:"choices"`
 	}
 
-	if sparkNlpResp.Code != "0" || len(sparkNlpResp.Data.Items) == 0 {
-		return nil, fmt.Errorf("情感分析失败: code=%s, desc=%s", sparkNlpResp.Code, sparkNlpResp.Desc)
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
 
-	// 映射
-	item := sparkNlpResp.Data.Items[0]
-
-	var emotionType string
-
-	switch item.Settimeent {
-	case 0:
-		emotionType = "negative"
-	case 1:
-		emotionType = "neutral"
-	case 2:
-		emotionType = "positive"
-	default:
-		emotionType = "neutral"
+	if len(response.Choices) == 0 {
+		return nil, fmt.Errorf("未收到有效响应")
 	}
 
+	// 返回情绪分析结果
 	return &models.Emotion{
-		Type:     emotionType,
-		Score:    float64(item.Confidence),
-		Keywords: []string{},
+		Type:     response.Choices[0].Message.Emotion.Type,
+		Score:    response.Choices[0].Message.Emotion.Score,
+		Keywords: response.Choices[0].Message.Emotion.Keywords,
 	}, nil
 }
