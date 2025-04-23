@@ -16,6 +16,9 @@ var requiredEnvVars = []string{
 	"SPARK_MODEL",
 	"MONGO_URI",
 	"DB_NAME",
+	"GITHUB_CLIENT_ID",
+	"GITHUB_CLIENT_SECRET",
+	"GITHUB_REDIRECT_URL",
 }
 
 func LoadEnv() error {
@@ -32,6 +35,11 @@ func LoadEnv() error {
 	setEnv("SPARK_HTTP_BASE_URL", "https://spark-api-open.xf-yun.com/v2/chat/completions")
 	setEnv("SPARK_HTTP_API_Password", "GHCvBwIdiDKsfauuRjmQ:QCCGZRqvWQdBMIhAeeNx")
 	setEnv("SPARK_MODEL", "spark-x1")
+
+	// Github配置
+	setEnv("GITHUB_CLIENT_ID", "Ov23ct6h8TUBSbpkSsLu")
+	setEnv("GITHUB_CLIENT_SECRET", "1d0c04cae758cee3db0cd47134fcdbdff411294e")
+	setEnv("GITHUB_REDIRECT_URL", "http://localhost:8081/api/callback")
 
 	// 验证所有必需的环境变量
 	for _, envVar := range requiredEnvVars {
