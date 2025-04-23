@@ -1,18 +1,10 @@
 <script setup lang='ts'>
+import LayoutView from './layout/LayoutView.vue'
 </script>
 
 <template>
-  <div>
-    <h1>Hello App!</h1>
-    <p>
-    </p>
-    <nav>
-      <RouterLink to="/">Go to Home</RouterLink>
-      <RouterLink to="/about">Go to About</RouterLink>
-    </nav>
-    <main>
-      <RouterView />
-    </main>
+  <div class="w-screen h-screen">
+    <LayoutView />
   </div>
 </template>
 

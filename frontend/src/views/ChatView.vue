@@ -4,7 +4,7 @@
 
 <template>
  <div>
-  123
+  ChatView
  </div>
 </template>
 
