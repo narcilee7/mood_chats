@@ -3,6 +3,7 @@ package services
 import (
 	"chatbot-server/models"
 	"context"
+	"log"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -43,7 +44,7 @@ func NewChatService(db *mongo.Database, ai *SparkProvider) ChatService {
 /*
 创建新会话
 */
-func (s *ChatServiceImpl) CreateSession(userID string) (*models.Session, error) {
+func (cs *ChatServiceImpl) CreateSession(userID string) (*models.Session, error) {
 	session := &models.Session{
 		ID:        primitive.NewObjectID().Hex(),
 		UserID:    userID,
@@ -53,7 +54,7 @@ func (s *ChatServiceImpl) CreateSession(userID string) (*models.Session, error) 
 		UpdatedAt: time.Now().Unix(),
 	}
 
-	_, err := s.db.Collection("sessions").InsertOne(context.Background(), session)
+	_, err := cs.db.Collection("sessions").InsertOne(context.Background(), session)
 	if err != nil {
 		return nil, err
 	}
@@ -64,16 +65,16 @@ func (s *ChatServiceImpl) CreateSession(userID string) (*models.Session, error) 
 /*
 发送消息
 */
-func (s *ChatServiceImpl) SendMessage(sessionID string, content string) (*models.Message, error) {
+func (cs *ChatServiceImpl) SendMessage(sessionID string, content string) (*models.Message, error) {
 	// 1. 分析情绪
-	emotion, err := s.AnalyzeEmotion(content)
+	emotion, err := cs.AnalyzeEmotion(content)
 	if err != nil {
 		return nil, err
 	}
 
 	// 2. 生成AI回复
 	history := []models.Message{}
-	reply, err := s.ai.Chat(content, history)
+	reply, err := cs.ai.Chat(content, history)
 
 	if err != nil {
 		return nil, err
@@ -104,7 +105,7 @@ func (s *ChatServiceImpl) SendMessage(sessionID string, content string) (*models
 		"$set": bson.M{"updatedAt": time.Now().Unix()},
 	}
 
-	_, err = s.db.Collection("sessions").UpdateOne(
+	_, err = cs.db.Collection("sessions").UpdateOne(
 		context.Background(),
 		bson.M{"_id": sessionID},
 		update,
@@ -134,8 +135,12 @@ func (s *ChatServiceImpl) GetSessionHistory(sessionID string) ([]models.Message,
 实现情感分析
 */
 func (s *ChatServiceImpl) AnalyzeEmotion(content string) (*models.Emotion, error) {
-	// TODO: 实现情绪分析
-	// 这里可以集成第三方情绪分析API
+	// 调用大模型接口进行情感分析
+	userEmotion, err := s.ai.AnalyzeEmotion(content)
+
+	if err != nil {
+		log.Warn("SparkX 分析用户情绪失败", err)
+	}
 	return &models.Emotion{
 		Type:     "neutral",
 		Score:    0.5,

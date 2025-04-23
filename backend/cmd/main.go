@@ -2,19 +2,23 @@ package main
 
 import (
 	"chatbot-server/configs"
-	"chatbot-server/controllers"
 	"chatbot-server/database"
+	"chatbot-server/handlers"
 	"chatbot-server/routes"
 	"chatbot-server/services"
+	"go.uber.org/zap"
 	"log"
 )
 
 func main() {
 	// 加载配置
 	configs.LoadEnv()
+	// 初始化日志
+	zap.L().Info("Logger initialized")
 
 	// 连接数据库
 	database.ConnectDB()
+	zap.L().Info("Database initialized")
 
 	// 初始化服务
 	sparkProvider := services.NewSparkProvider(
