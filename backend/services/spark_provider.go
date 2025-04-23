@@ -7,6 +7,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -21,6 +23,11 @@ type SparkProvider struct {
 	Host      string
 	BaseURL   string
 	Model     string
+}
+
+type SparkProviderInterface interface {
+	Chat(prompt string, history []models.Message) (string, error)
+	AnalyzeEmotion(text string) (*models.Emotion, error)
 }
 
 func NewSparkProvider(appID, apiSecret, apiKey, host, baseURL, model string) *SparkProvider {
@@ -144,4 +151,82 @@ func (s *SparkProvider) Chat(prompt string, history []models.Message) (string, e
 	}
 
 	return finalText.String(), nil
+}
+
+func (s *SparkProvider) AnalyzeEmotion(text string) (*models.Emotion, error) {
+	// 签名头
+	currentTime := fmt.Sprintf("%d", time.Now().Unix())
+	// X-Param
+	param := map[string]string{
+		"type": "dependent",
+	}
+	paramJSON, _ := json.Marshal(param)
+	paramBase64 := base64.StdEncoding.EncodeToString(paramJSON)
+	// X-Check-Sum
+	checkSum := fmt.Sprintf("app_id=%s&time_stamp=%s&param_base64=%s&check_sum=%s", s.AppID, currentTime, paramBase64, s.APISecret)
+	//checkSumSHA256 := fmt.Sprintf("%x", sha256.Sum256([]byte(checkSum)))
+
+	// 构建请求
+	form := url.Values{}
+	form.Add("text", text)
+	req, err := http.NewRequest("POST", s.BaseURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+	req.Header.Set("X-Appid", s.AppID)
+	req.Header.Set("X-CurTime", currentTime)
+	req.Header.Set("X-Param", paramBase64)
+	req.Header.Set("X-CheckSum", checkSum)
+
+	resp, err := http.DefaultClient.Do(req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	body, _ := ioutil.ReadAll(resp.Body)
+
+	var sparkNlpResp struct {
+		Code string `json:"code"`
+		Data struct {
+			Items []struct {
+				Settimeent int `json:"sentiment"`  // 0 消极 1 中性 2 积极
+				Confidence int `json:"confidence"` // 置信度
+			} `json:"items"`
+		}
+		Desc string `json:"desc"`
+	}
+
+	if err := json.Unmarshal(body, &sparkNlpResp); err != nil {
+		return nil, fmt.Errorf("解析情感分析响应失败: %w", err)
+	}
+
+	if sparkNlpResp.Code != "0" || len(sparkNlpResp.Data.Items) == 0 {
+		return nil, fmt.Errorf("情感分析失败: code=%s, desc=%s", sparkNlpResp.Code, sparkNlpResp.Desc)
+	}
+
+	// 映射
+	item := sparkNlpResp.Data.Items[0]
+
+	var emotionType string
+
+	switch item.Settimeent {
+	case 0:
+		emotionType = "negative"
+	case 1:
+		emotionType = "neutral"
+	case 2:
+		emotionType = "positive"
+	default:
+		emotionType = "neutral"
+	}
+
+	return &models.Emotion{
+		Type:     emotionType,
+		Score:    float64(item.Confidence),
+		Keywords: []string{},
+	}, nil
 }
