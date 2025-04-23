@@ -2,6 +2,7 @@ package routes
 
 import (
 	"chatbot-server/controllers"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,11 +15,14 @@ func SetupRouter(chatController *controllers.ChatController) *gin.Engine {
 
 	api := r.Group("/api")
 	{
-		// 会话相关
+		/*会话相关*/
+		// 构建新会话
 		api.POST("/sessions", chatController.CreateSession)
-		api.GET("/sessions/:sessionId/history", chatController.GetHistory)
+		
+		// 根据userID获取会话列表
+		api.GET("/sessions/history", chatController.GetSessionsByUserID)
 
-		// 消息相关
+		/*消息相关*/
 		api.POST("/messages", chatController.SendMessage)
 	}
 

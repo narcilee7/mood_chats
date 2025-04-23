@@ -33,8 +33,8 @@ func main() {
 	r := routes.SetupRouter(chatController)
 
 	// 启动服务器
-	log.Println("Server starting on :8080")
-	if err := r.Run(":8080"); err != nil {
+	log.Println("Server starting on :8081")
+	if err := r.Run(":8081"); err != nil {
 		log.Fatal("Server failed to start:", err)
 	}
 }
