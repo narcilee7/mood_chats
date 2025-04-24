@@ -62,6 +62,30 @@ func (cs *ChatServiceImpl) CreateSession(userID string) (*models.Session, error)
 	return session, nil
 }
 
+func (cs *ChatServiceImpl) CreateSessionWithMessage(userID string, newMessage string) (*models.Session, error) {
+	message := &models.Message{
+		Role: models.User,
+		Content: newMessage,
+		Timestamp: time.Now().Unix(),
+	}
+	session := &models.Session{
+		ID:        primitive.NewObjectID().Hex(),
+		UserID:    userID,
+		Title: newMessage[:20],
+		Messages: append([]models.Message{}, *message),
+		CreatedAt: time.Now().Unix(),
+	}
+
+
+	_, err := cs.db.Collection("messages").InsertOne(context.Background(), message)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return session, err
+}
+
 func (s *ChatServiceImpl) GetSessionHistory(sessionID string) ([]models.Message, error) {
 	var session models.Session
 	err := s.db.Collection("sessions").FindOne(

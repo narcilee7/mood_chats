@@ -21,7 +21,7 @@ func NewChatController(chatService services.ChatService) *ChatController {
 // CreateSession 创建新会话
 func (c *ChatController) CreateSession(ctx *gin.Context) {
 	var req struct {
-		UserID string `json:"userId"`
+		userId string `json:"userId"`
 	}
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -29,7 +29,7 @@ func (c *ChatController) CreateSession(ctx *gin.Context) {
 		return
 	}
 
-	userId := req.UserID
+	userId := req.userId
 
 	if userId == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "userId is required"})
@@ -37,6 +37,40 @@ func (c *ChatController) CreateSession(ctx *gin.Context) {
 	}
 
 	session, err := c.chatService.CreateSession(userId)
+
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, session)
+}
+
+func (c *ChatController) CreateSessionWithMessage(ctx *gin.Context) {
+	var req struct {
+		userId string `json:"userId"`
+		newMessage string `json:"newMessage"`
+	}
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userId := req.userId
+	newMessage := req.newMessage
+
+	if userId == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "userId is required"})
+		return
+	}
+
+	if newMessage == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "newMessage is required"})
+		return
+	}
+
+	session, err := c.chatService.CreateSessionWithMessage(userId, newMessage)
 
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

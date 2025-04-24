@@ -13,7 +13,8 @@ func SetupRouter(chatController *handlers.ChatController) *gin.Engine {
 	// 聊天相关路由
 	chat := r.Group("/api")
 	{
-		chat.POST("/sessions", chatController.CreateSession)
+		chat.POST("/create-empty-session", chatController.CreateSession)
+		chat.POST("/create-empty-session", chatController.CreateSessionWithMessage)
 		chat.GET("/sessions/history", chatController.GetSessionsByUserID)
 		chat.POST("/messages", chatController.ChatAndAnalyze)
 	}
