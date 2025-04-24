@@ -21,7 +21,7 @@ func NewChatController(chatService services.ChatService) *ChatController {
 // CreateSession 创建新会话
 func (c *ChatController) CreateSession(ctx *gin.Context) {
 	var req struct {
-		userId string `json:"userId"`
+		UserID string `json:"userId"`
 	}
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -29,7 +29,7 @@ func (c *ChatController) CreateSession(ctx *gin.Context) {
 		return
 	}
 
-	userId := req.userId
+	userId := req.UserID
 
 	if userId == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "userId is required"})
@@ -48,8 +48,8 @@ func (c *ChatController) CreateSession(ctx *gin.Context) {
 
 func (c *ChatController) CreateSessionWithMessage(ctx *gin.Context) {
 	var req struct {
-		userId string `json:"userId"`
-		newMessage string `json:"newMessage"`
+		UserID string `json:"userId"`
+		NewMessage string `json:"newMessage"`
 	}
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -57,8 +57,8 @@ func (c *ChatController) CreateSessionWithMessage(ctx *gin.Context) {
 		return
 	}
 
-	userId := req.userId
-	newMessage := req.newMessage
+	userId := req.UserID
+	newMessage := req.NewMessage
 
 	if userId == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "userId is required"})

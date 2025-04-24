@@ -18,6 +18,8 @@ import (
 type ChatService interface {
 	// 创建新会话
 	CreateSession(userID string) (*models.Session, error)
+	// 通过创建message创建新会话
+	CreateSessionWithMessage(userID string, newMessage string) (*models.Session, error)
 	// 获取会话列表
 	GetSessionsByUserID(userID string) ([]*models.Session, error)
 	// 发送消息并收集情绪
@@ -63,21 +65,29 @@ func (cs *ChatServiceImpl) CreateSession(userID string) (*models.Session, error)
 }
 
 func (cs *ChatServiceImpl) CreateSessionWithMessage(userID string, newMessage string) (*models.Session, error) {
-	message := &models.Message{
-		Role: models.User,
-		Content: newMessage,
-		Timestamp: time.Now().Unix(),
-	}
 	session := &models.Session{
 		ID:        primitive.NewObjectID().Hex(),
 		UserID:    userID,
-		Title: newMessage[:20],
-		Messages: append([]models.Message{}, *message),
+		Title:     "新会话",
+		Messages:  []models.Message{},
 		CreatedAt: time.Now().Unix(),
+		UpdatedAt: time.Now().Unix(),
 	}
 
+	_, err := cs.db.Collection("sessions").InsertOne(context.Background(), session)
 
-	_, err := cs.db.Collection("messages").InsertOne(context.Background(), message)
+	if err != nil {
+		return nil, err
+	}
+
+	// 创建消息对象并插入
+	messageObj := models.Message{
+		Role:      models.User,
+		Content:   newMessage,
+		Timestamp: time.Now().Unix(),
+	}
+	
+	_, err = cs.db.Collection("messages").InsertOne(context.Background(), messageObj)
 
 	if err != nil {
 		return nil, err

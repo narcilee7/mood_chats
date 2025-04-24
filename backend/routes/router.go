@@ -14,7 +14,7 @@ func SetupRouter(chatController *handlers.ChatController) *gin.Engine {
 	chat := r.Group("/api")
 	{
 		chat.POST("/create-empty-session", chatController.CreateSession)
-		chat.POST("/create-empty-session", chatController.CreateSessionWithMessage)
+		chat.POST("/create-session-with-message", chatController.CreateSessionWithMessage)
 		chat.GET("/sessions/history", chatController.GetSessionsByUserID)
 		chat.POST("/messages", chatController.ChatAndAnalyze)
 	}
