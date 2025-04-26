@@ -47,8 +47,8 @@ import ChatEditor from '@/components/ChatEditor.vue';
   }
 
   &_textarea {
-    width: 80%;
-    height: 230px;
+    width: 65%;
+    height: 200px;
   }
 }
 </style>

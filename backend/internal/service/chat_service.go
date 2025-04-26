@@ -1,7 +1,7 @@
 package services
 
 import (
-	"chatbot-server/models"
+	models "chatbot-server/internal/model"
 	"context"
 	"fmt"
 	"time"

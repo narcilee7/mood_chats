@@ -1,11 +1,12 @@
 import axios from "axios";
 
-const instance = axios.create({
-  baseURL: "http://localhost:8081/api",
+const axiosInstance = axios.create({
+  baseURL: "/api",
+  timeout: 10000,
 });
 
 
-instance.interceptors.request.use(
+axiosInstance.interceptors.request.use(
   async (config) => {
     // todo
     return config;
@@ -16,7 +17,7 @@ instance.interceptors.request.use(
 );
 
 
-instance.interceptors.response.use(
+axiosInstance.interceptors.response.use(
   (response) => {
     return response;
   },
@@ -25,4 +26,4 @@ instance.interceptors.response.use(
   }
 );
 
-export default instance;
+export default axiosInstance;

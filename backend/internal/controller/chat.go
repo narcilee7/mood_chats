@@ -1,7 +1,7 @@
-package handlers
+package controller
 
 import (
-	"chatbot-server/services"
+	services "chatbot-server/internal/service"
 	"fmt"
 	"net/http"
 

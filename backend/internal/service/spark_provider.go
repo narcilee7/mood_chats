@@ -2,7 +2,7 @@ package services
 
 import (
 	"bytes"
-	"chatbot-server/models"
+	models "chatbot-server/internal/model"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"

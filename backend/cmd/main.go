@@ -2,11 +2,11 @@ package main
 
 import (
 	"chatbot-server/configs"
-	"chatbot-server/database"
-	"chatbot-server/handlers"
-	"chatbot-server/logger"
-	"chatbot-server/routes"
-	"chatbot-server/services"
+	"chatbot-server/internal/controller"
+	"chatbot-server/internal/database"
+	"chatbot-server/internal/router"
+	services "chatbot-server/internal/service"
+	"chatbot-server/pkg/logger"
 	"log"
 
 	"go.uber.org/zap"
@@ -40,10 +40,10 @@ func main() {
 	)
 
 	chatService := services.NewChatService(database.DB, sparkProvider)
-	chatController := handlers.NewChatController(chatService)
+	chatController := controller.NewChatController(chatService)
 
 	// 设置路由
-	r := routes.SetupRouter(chatController)
+	r := router.SetupRouter(chatController)
 
 	// 启动服务器
 	zap.L().Info("服务启动成功")
