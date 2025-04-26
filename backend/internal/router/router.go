@@ -3,33 +3,30 @@ package router
 import (
 	"chatbot-server/internal/controller"
 	"chatbot-server/internal/middleware"
-	services "chatbot-server/internal/service"
+	"chatbot-server/internal/services"
 
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter(chatController *controller.ChatController) *gin.Engine {
+func NewRouter(cc *controller.ChatController) *gin.Engine {
 	r := gin.Default()
 
-	// 跨域设置
 	r.Use(middleware.CORS())
 
-	// 聊天相关路由
-	chat := r.Group("/api")
-	{
-		chat.POST("/create-empty-session", chatController.CreateSession)
-		chat.POST("/create-session-with-message", chatController.CreateSessionWithMessage)
-		chat.GET("/get-session-list", chatController.GetSessionsByUserID)
-		chat.POST("/messages", chatController.ChatAndAnalyze)
-	}
+	api := r.Group("/api")
 
-	// 登录相关路由
-	auth := r.Group("/api")
 	{
-		auth.GET("/login", services.LoginHandler)
-		auth.GET("/callback", services.CallBackHandler)
-		auth.GET("/me", services.NewHandler)
+		// 聊天相关
+		api.POST("/create-empty-session", cc.CreateSession)
+		api.POST("/create-session-with-message", cc.CreateSessionWithMessage)
+		api.GET("/get-session-list", cc.GetSessionsByUserID)
+		api.POST("/messages", cc.ChatAndAnalyze)
+
+		// 登录相关
+		api.GET("/login", services.LoginHandler)
+		api.GET("/callback", services.CallBackHandler)
+		api.GET("/me", services.NewHandler)
 	}
 
 	return r
-}
+} 

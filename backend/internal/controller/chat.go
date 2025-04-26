@@ -1,7 +1,7 @@
 package controller
 
 import (
-	services "chatbot-server/internal/service"
+	"chatbot-server/internal/services"
 	"fmt"
 	"net/http"
 

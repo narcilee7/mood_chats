@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	"log"
 	"os"
 	"time"
 
@@ -12,26 +11,23 @@ import (
 
 var DB *mongo.Database
 
-
-// 连接db
-func ConnectDB() {
+// ConnectDB 创建并返回连接的 mongo.Database
+func ConnectDB() (*mongo.Database, error) {
 	client, err := mongo.NewClient(options.Client().ApplyURI(os.Getenv("MONGO_URI")))
-
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
-	// 关闭
 	defer cancel()
 
 	err = client.Connect(ctx)
-
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	DB = client.Database(os.Getenv("DB_NAME"))
-	log.Println("✅ MongoDB connected!")
+	db := client.Database(os.Getenv("DB_NAME"))
+	DB = db // 保持兼容性（如果外面想直接用 `database.DB`）
+
+	return db, nil
 }
