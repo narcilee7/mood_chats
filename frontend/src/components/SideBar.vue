@@ -2,8 +2,12 @@
 import { ChevronUpIcon, ChevronDownIcon  } from "@heroicons/vue/20/solid";
 import { ChatBubbleLeftRightIcon, ClockIcon } from "@heroicons/vue/24/outline";
 import { ref, onMounted, onUnmounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
 const footChevronUp = ref(false);
+
+const route = useRoute()
+const rotuer = useRouter()
 
 const handleFooterClick = () => {
   footChevronUp.value = !footChevronUp.value;
@@ -11,6 +15,26 @@ const handleFooterClick = () => {
 
 const handleCreateNewChat = () => {
   console.log('handleCreateNewChat')
+}
+
+const handleLoginWithGithub = () => {
+  window.location.href = 'http://localhost:8081/api/login'
+}
+
+const handleLoginCB = async () => {
+  const token = route.query.token
+  if (token) {
+    localStorage.setItem('token', token as string)
+    const res = await fetch('http://localhost:8081/api/me', {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+    const user = await res.json()
+    console.log('用户信息', user)
+    // 清空token
+    rotuer.replace('/')
+  }
 }
 
 // 监听键盘事件
@@ -36,6 +60,7 @@ onMounted(() => {
 onUnmounted(() => {
   try {
     window.removeEventListener('keydown', handleKeyDown)
+    handleLoginCB()
   } catch (error) {
     console.error('Error removing event listener:', error)
   }
@@ -71,6 +96,7 @@ onUnmounted(() => {
       <span>cc</span>
     </div>
     <div class="action" @click="handleFooterClick">
+      <button @click="handleLoginWithGithub">Login</button>
       <ChevronUpIcon class="w-10 h-10 ext-gray-400 cursor-pointer" v-if="footChevronUp" />
       <ChevronDownIcon class="w-10 h-10 ext-gray-400 cursor-pointer" v-else />
     </div>

@@ -26,7 +26,7 @@ type GlobalConfig struct {
 	DBName       string
 	SparkConfig  *SparkConfig
 	GithubConfig *GithubConfig
-	JWTSecret    string
+	JWTSecret    []byte
 }
 
 var Config *GlobalConfig
@@ -66,7 +66,7 @@ func LoadEnv() error {
 			ClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
 			RedirectURL:  os.Getenv("GITHUB_REDIRECT_URL"),
 		},
-		JWTSecret: os.Getenv("JWT_SECRET"),
+		JWTSecret: []byte(os.Getenv("JWT_SECRET")),
 	}
 
 	return nil

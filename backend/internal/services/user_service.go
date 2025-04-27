@@ -12,28 +12,22 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// github
-var (
-	clientID = configs.Config.GithubConfig.ClientID
-	clientSecret = configs.Config.GithubConfig.ClientSecret
-	redirectURL = configs.Config.GithubConfig.RedirectURL
-	jwtSecret = []byte(configs.Config.JWTSecret)
-)
 
-func generateToken(username string) (string, error) {
+func generateToken(username, avatarURL string) (string, error) {
 	claims := jwt.MapClaims{
 		"username": username,
 		"exp":      time.Now().Add(time.Hour * 24).Unix(), // 1天有效
+		"avatar_url": avatarURL,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtSecret)
+	return token.SignedString(configs.Config.JWTSecret)
 }
 
 func LoginHandler(c *gin.Context) {
 	url := fmt.Sprintf(
 		"https://github.com/login/oauth/authorize?client_id=%s&redirect_uri=%s&scope=user",
-		clientID,
-		url.QueryEscape(redirectURL),
+		configs.Config.GithubConfig.ClientID,
+		url.QueryEscape(configs.Config.GithubConfig.RedirectURL),
 	)
 	c.Redirect(http.StatusFound, url)
 }
@@ -55,14 +49,14 @@ func CallBackHandler(c *gin.Context) {
 	resp, err := client.R().
 		SetHeader("Accept", "application/json").
 		SetFormData(map[string]string{
-			"client_id":     clientID,
-			"client_secret": clientSecret,
+			"client_id":     configs.Config.GithubConfig.ClientID,
+			"client_secret": configs.Config.GithubConfig.ClientSecret,
 			"code":          code,
-			"redirect_uri":  redirectURL,
+			"redirect_uri":  configs.Config.GithubConfig.RedirectURL,
 		}).
 		SetResult(&tokenResp).
 		Post("https://github.com/login/oauth/access_token")
-
+	
 	if err != nil || resp.StatusCode() != http.StatusOK {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to exchange code for token"})
 		return
@@ -76,6 +70,13 @@ func CallBackHandler(c *gin.Context) {
 	var userInfo struct {
 		Login string `json:"login"`
 		AvatarURL string `json:"avatar_url"`
+		Name string `json:"name"`
+		Email string `json:"email"`
+		Location string `json:"location"`
+		Bio string `json:"bio"`
+		Blog string `json:"blog"`
+		Company string `json:"company"`
+		HtmlURL string `json:"html_url"`
 	}
 
 	resp, err = client.R().
@@ -84,19 +85,28 @@ func CallBackHandler(c *gin.Context) {
 		SetResult(&userInfo).
 		Get("https://api.github.com/user")
 
+
 	if err != nil || resp.StatusCode() != http.StatusOK {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
 		return
 	}
+	
+	if userInfo.Login == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		return
+	}
 
-	token, err := generateToken(userInfo.Login)
+	token, err := generateToken(userInfo.Login, userInfo.AvatarURL)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
 	}
 
-	c.Redirect(http.StatusFound, fmt.Sprintf("http://localhost:5173/login/callback?token=%s", token))
+	// 存储db
+	
+	// 避免出现token意外字符
+	c.Redirect(http.StatusFound, fmt.Sprintf("http://localhost:5173?token=%s", url.QueryEscape(token)))
 }
 
 
@@ -114,7 +124,7 @@ func NewHandler(c *gin.Context) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
-		return jwtSecret, nil
+		return configs.Config.JWTSecret, nil
 	})
 
 	if err != nil || !token.Valid {
@@ -130,8 +140,10 @@ func NewHandler(c *gin.Context) {
 	}
 
 	username := claims["username"].(string)
+	avatarURL := claims["avatar_url"].(string)
 
 	c.JSON(http.StatusOK, gin.H{
 		"username": username,
+		"avatar_url": avatarURL,
 	})
 }
