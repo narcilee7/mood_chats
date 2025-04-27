@@ -42,6 +42,8 @@ func CallBackHandler(c *gin.Context) {
 
 	client := resty.New()
 
+	client.SetProxy("http://127.0.0.1:7890")
+
 	var tokenResp struct {
 		AccessToken string `json:"access_token"`
 	}
@@ -58,6 +60,7 @@ func CallBackHandler(c *gin.Context) {
 		Post("https://github.com/login/oauth/access_token")
 	
 	if err != nil || resp.StatusCode() != http.StatusOK {
+		fmt.Println("Error:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to exchange code for token"})
 		return
 	}
@@ -90,6 +93,8 @@ func CallBackHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
 		return
 	}
+
+	fmt.Println(userInfo)
 	
 	if userInfo.Login == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
@@ -104,7 +109,7 @@ func CallBackHandler(c *gin.Context) {
 	}
 
 	// 存储db
-	
+
 	// 避免出现token意外字符
 	c.Redirect(http.StatusFound, fmt.Sprintf("http://localhost:5173?token=%s", url.QueryEscape(token)))
 }
@@ -141,9 +146,24 @@ func NewHandler(c *gin.Context) {
 
 	username := claims["username"].(string)
 	avatarURL := claims["avatar_url"].(string)
+	name := claims["name"].(string)
+	email := claims["email"].(string)
+	location := claims["location"].(string)
+	bio := claims["bio"].(string)
+	blog := claims["blog"].(string)
+	company := claims["company"].(string)
+	htmlURL := claims["html_url"].(string)
+
 
 	c.JSON(http.StatusOK, gin.H{
 		"username": username,
 		"avatar_url": avatarURL,
+		"name": name,
+		"email": email,
+		"location": location,
+		"bio": bio,
+		"blog": blog,
+		"company": company,
+		"html_url": htmlURL,
 	})
 }

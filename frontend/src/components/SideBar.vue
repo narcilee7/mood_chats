@@ -32,7 +32,7 @@ const handleLoginCB = async () => {
     })
     const user = await res.json()
     console.log('用户信息', user)
-    // 清空token
+    localStorage.setItem('user', JSON.stringify(user))
     rotuer.replace('/')
   }
 }
@@ -51,7 +51,9 @@ const handleKeyDown = (e: KeyboardEvent) => {
 
 onMounted(() => {
   try {
+    console.log('add event listener')
     window.addEventListener('keydown', handleKeyDown)
+    handleLoginCB()
   } catch (error) {
     console.error('Error adding event listener:', error)
   }
