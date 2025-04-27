@@ -13,11 +13,18 @@ import (
 )
 
 
-func generateToken(username, avatarURL string) (string, error) {
+func generateToken(username, avatarURL, name, email, location, bio, blog, company, htmlURL  string) (string, error) {
 	claims := jwt.MapClaims{
 		"username": username,
 		"exp":      time.Now().Add(time.Hour * 24).Unix(), // 1天有效
 		"avatar_url": avatarURL,
+		"name": name,
+		"email": email,
+		"location": location,
+		"bio": bio,
+		"blog": blog,
+		"company": company,
+		"html_url": htmlURL,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(configs.Config.JWTSecret)
@@ -101,7 +108,7 @@ func CallBackHandler(c *gin.Context) {
 		return
 	}
 
-	token, err := generateToken(userInfo.Login, userInfo.AvatarURL)
+	token, err := generateToken(userInfo.Login, userInfo.AvatarURL, userInfo.Name, userInfo.Email, userInfo.Location, userInfo.Bio, userInfo.Blog, userInfo.Company, userInfo.HtmlURL)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
@@ -109,7 +116,8 @@ func CallBackHandler(c *gin.Context) {
 	}
 
 	// 存储db
-
+	// _, err 
+	
 	// 避免出现token意外字符
 	c.Redirect(http.StatusFound, fmt.Sprintf("http://localhost:5173?token=%s", url.QueryEscape(token)))
 }

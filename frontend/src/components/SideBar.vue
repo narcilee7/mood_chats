@@ -49,11 +49,10 @@ const handleKeyDown = (e: KeyboardEvent) => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   try {
-    console.log('add event listener')
     window.addEventListener('keydown', handleKeyDown)
-    handleLoginCB()
+    await handleLoginCB()
   } catch (error) {
     console.error('Error adding event listener:', error)
   }
